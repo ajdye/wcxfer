@@ -1,0 +1,91 @@
+Bootstrap: docker
+From: python:3.7
+
+%environment
+    export LC_ALL=C
+    export PYTHONPATH=/usr/local/lib/python3.7/site-packages
+    export ROOTSYS=/opt/root_install
+    export PATH=$ROOTSYS/bin:$PATH
+    export PYTHONPATH=$ROOTSYS/lib:$PYTHONPATH
+    export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH
+
+%post
+    # Setup
+    apt-get update
+    apt-get install -y --no-install-recommends \
+    	            git \
+		    libopenmpi-dev \
+    	    	    dpkg-dev \
+		    cmake \
+		    g++ \
+		    gcc \
+		    binutils \
+		    libx11-dev \
+		    libxpm-dev \
+		    libxft-dev \
+		    libxext-dev \
+		    libssl-dev \
+		    libtinfo5 \
+		    libhdf5-mpi-dev
+    pip install -U pip
+
+    # For Parallel h5py
+    export CC=mpicc
+    export HDF5_MPI="ON"
+
+    pip install --no-cache-dir --no-binary=h5py \
+    		pytest \
+    		black \
+		mypy \
+		argparse \
+		configargparse \
+		snakeviz \
+		Pillow \
+		ipython \
+		jedi \
+		mpi4py \
+		h5py \
+		tables \
+		numpy \
+		pandas \
+		numba \
+		cython \
+		boost-histogram \
+		scipy \
+		astropy \
+		statsmodels \
+		xgboost \
+		opencv-python \
+		scikit-learn \
+		scikit-image \
+		tensorflow \
+		autokeras \
+		matplotlib \
+		seaborn \
+		xkcd
+
+    # PandAna Core
+    git clone https://github.com/HEPonHPC/pandana.git
+    cp -r pandana/pandana /usr/local/lib/python3.7/site-packages
+    rm -rf pandana
+
+    # ROOT
+    cd /opt
+    mkdir root_install root_build
+    git clone https://github.com/root-project/root
+    cd root
+    git checkout v6-18-00-patches
+    cd /opt/root_build
+    cmake -DCMAKE_INSTALL_PREFIX=/opt/root_install -DPYTHON_EXECUTABLE=/usr/local/bin/python /opt/root
+    cmake --build . --target install -j 3
+    cd /opt
+    rm -rf root
+    rm -rf root_build
+
+%runscript
+    /usr/local/bin/python
+
+%labels
+    Author grohmc
+    Version v1.1.0
+    Label PyAna

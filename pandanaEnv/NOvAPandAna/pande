@@ -1,0 +1,116 @@
+#!/bin/env python
+import os
+import sys
+import argparse
+
+
+def makeParser():
+    parser = argparse.ArgumentParser(description="The PandAna executable")
+
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Print the executed command"
+    )
+
+    parser.add_argument(
+        "-n",
+        metavar="N",
+        type=int,
+        default=1,
+        help="Use N MPI processes, defaults to 1",
+    )
+
+    parser.add_argument("--black", action="store_true", help="apply black formatting")
+    parser.add_argument("--mypy", action="store_true", help="mypy check")
+
+    parser.add_argument(
+        "-i",
+        action="store_true",
+        help="inspect interactively after running script",
+    )
+
+    parser.add_argument(
+        "script",
+        metavar="script.py",
+        help="the python script to run. Use bash to start a bash terminal",
+    )
+
+    parser.add_argument("args", nargs="*", help="optional arguments passed to script")
+
+    # Everything after the script is considered a script argument
+    # After identifying the script separate sys.argv
+    known, unknown = parser.parse_known_args()
+    script_idx = sys.argv.index(known.script)
+    mainargs = parser.parse_args(sys.argv[1 : script_idx + 1])
+    return mainargs, sys.argv[script_idx + 1 :]
+
+
+if __name__ == "__main__":
+    # This is very hacky, but has the effect of starting python
+    # interactively when no script is given
+    sys.argv += " "
+
+    parser, args = makeParser()
+    if " " in args:
+        args.pop()
+
+    if parser.verbose:
+        print("pande arguments: ", parser)
+        print("script arguments:", args)
+
+    SINGULARITY = "/cvmfs/oasis.opensciencegrid.org/mis/singularity/bin/singularity"
+    SINGULARITYCMD = "exec"
+    SINGULARITYENV = "--cleanenv --env PYTHONPATH=/nova/ana/users/grohmc/pandasing/temp/NOvAPandAna:\$PYTHONPATH --env DISPLAY=$DISPLAY"
+    BINDS = "-B /nova -B /cvmfs -B /pnfs"
+    SINGULARITYPATH = "/nova/ana/users/grohmc/pandasing/pandana_singularity"
+
+    PYTHONCMD = "/usr/local/bin/python"
+    if parser.n > 1:
+        PYTHONCMD = "mpiexec -n " + str(parser.n) + " " + PYTHONCMD
+    if parser.i:
+        PYTHONCMD = PYTHONCMD + " -i"
+
+    if parser.black and parser.mypy:
+        print("Specify only one of --black and --mypy")
+        sys.exit(1)
+    if parser.black:
+        PYTHONCMD = "black"
+        args = []
+    if parser.mypy:
+        PYTHONCMD = "mypy --ignore-missing-imports --check-untyped-defs"
+        args = []
+
+    if parser.script == "bash":
+        PYTHONCMD = "bash"
+        parser.script = ""
+        args = []
+
+    if parser.script == " ":
+        PYTHONCMD = "ipython"
+        parser.script = ""
+        args = []
+
+    FULLCMD = (
+        SINGULARITY
+        + " "
+        + SINGULARITYCMD
+        + " "
+        + SINGULARITYENV
+        + " "
+        + BINDS
+        + " "
+        + SINGULARITYPATH
+        + " "
+        + PYTHONCMD
+        + " "
+        + parser.script
+        + " "
+        + " ".join(args)
+    )
+
+    if parser.verbose:
+        print("\n")
+        print("Executing: ")
+        print(FULLCMD)
+        print("\n")
+
+    os.system(FULLCMD)
